@@ -1,0 +1,53 @@
+{
+  "chats": [
+    {
+      "id": "d_maria",
+      "type": "direct",
+      "title": "Мария",
+      "peerUserId": "u_maria",
+      "participantIds": [],
+      "lastMessage": "Завтра созвон 11:00? Перекину ссылку",
+      "lastTime": "2025-07-01T10:01:00.000Z",
+      "unreadCount": 1
+    },
+    {
+      "id": "d_ivan",
+      "type": "direct",
+      "title": "Иван",
+      "peerUserId": "u_ivan",
+      "participantIds": [],
+      "lastMessage": "Ок, договорились 👍",
+      "lastTime": "2025-07-01T09:50:00.000Z",
+      "unreadCount": 0
+    },
+    {
+      "id": "grp_frontend",
+      "type": "group",
+      "title": "Frontend Crew",
+      "participantIds": ["u_anna", "u_oleg", "u_kate", "u_pavel", "u_sergey", "u_vika"],
+      "memberCount": 42,
+      "lastMessage": "Давайте переведём проект на Flutter 3.24",
+      "lastTime": "2025-07-01T10:05:00.000Z",
+      "unreadCount": 3
+    },
+    {
+      "id": "grp_travel",
+      "type": "group",
+      "title": "Поход на выходных",
+      "participantIds": ["u_maria", "u_ivan", "u_olga", "u_pavel", "u_anna", "u_denis", "u_sergey"],
+      "memberCount": 18,
+      "lastMessage": "Маршрут через озеро, вид шикарный!",
+      "lastTime": "2025-07-01T09:43:00.000Z",
+      "unreadCount": 2
+    },
+    {
+      "id": "ch_tech",
+      "type": "channel",
+      "title": "Tech Digest",
+      "subscriberCount": 52100,
+      "lastMessage": "Релиз Dart 3.5: ускорения и Records everywhere",
+      "lastTime": "2025-07-01T09:53:00.000Z",
+      "unreadCount": 0
+    }
+  ]
+} 

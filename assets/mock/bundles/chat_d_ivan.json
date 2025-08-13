@@ -1,0 +1,15 @@
+{
+  "users": [
+    {"id": "u_ivan", "phone": "+79000000002", "displayName": "Иван"}
+  ],
+  "messages": [
+    {"id": "m1", "senderId": "u_ivan",         "text": "Сервер обновил. Логи чистые.", "time": "2025-07-01T09:10:00.000Z"},
+    {"id": "m2", "senderId": "u_0000000000",     "text": "Круто, спасибо!", "time": "2025-07-01T09:11:00.000Z", "status": "sent"},
+    {"id": "m3", "senderId": "u_ivan",         "text": "Завтра добью мониторинг и алерты.", "time": "2025-07-01T09:12:20.000Z"},
+    {"id": "m4", "senderId": "u_0000000000",     "text": "Ок, пингани, помогу с графаной.", "time": "2025-07-01T09:13:00.000Z", "status": "read"}
+  ],
+  "settings": {
+    "muted": false,
+    "pinned": false
+  }
+} 

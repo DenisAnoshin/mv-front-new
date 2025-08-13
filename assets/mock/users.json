@@ -1,0 +1,14 @@
+{
+  "users": [
+    {"id": "u_maria", "phone": "+79000000001", "displayName": "Мария"},
+    {"id": "u_ivan",  "phone": "+79000000002", "displayName": "Иван"},
+    {"id": "u_olga",  "phone": "+79000000003", "displayName": "Ольга"},
+    {"id": "u_pavel", "phone": "+79000000004", "displayName": "Павел"},
+    {"id": "u_anna",  "phone": "+79000000005", "displayName": "Анна"},
+    {"id": "u_oleg",  "phone": "+79000000006", "displayName": "Олег"},
+    {"id": "u_kate",  "phone": "+79000000007", "displayName": "Катя"},
+    {"id": "u_denis", "phone": "+79000000008", "displayName": "Денис"},
+    {"id": "u_sergey","phone": "+79000000009", "displayName": "Сергей"},
+    {"id": "u_vika",  "phone": "+79000000010", "displayName": "Вика"}
+  ]
+} 
