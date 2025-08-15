@@ -1,16 +1,20 @@
 # mv
 
-A new Flutter project.
+Telegram-like chat UI mock in Flutter.
 
-## Getting Started
+## Run
 
-This project is a starting point for a Flutter application.
+```
+npm run start:dev
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Message types
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- Text
+- Audio: JSON mocks support `type: "audio"` with `audio` object fields:
+  - `durationSec` (int)
+  - `sizeBytes` (int)
+  - `url` (string, asset path or network URL)
+  - `waveform` (list[int], optional)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+UI renders audio via `AudioMessage` widget inside `MessageBubble`.

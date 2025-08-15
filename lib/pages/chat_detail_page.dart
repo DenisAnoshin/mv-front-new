@@ -6,6 +6,7 @@ import '../stores/chat_store.dart';
 import '../stores/user_store.dart';
 import '../theme/telegram_colors.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/audio_message.dart';
 // import '../widgets/date_divider.dart';
 import '../widgets/chat_background.dart';
 import '../widgets/app_bar/chat_app_bar.dart';
@@ -63,10 +64,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
   bool _isArming = false;
   double _micDragDy = 0.0; // negative when dragging up
   static const double _armThreshold = 50.0; // must reach to start recording
-  late final AnimationController _arrowController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat();
 
   @override
   void initState() {
@@ -83,6 +80,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
     vsync: this,
     duration: const Duration(seconds: 4),
   )..repeat();
+
+  // Playback (preview while paused) state
+  bool _isPlayingBack = false;
+  double _playbackProgress = 0.0; // 0..1
+  double _playBaseProgress = 0.0; // accumulated progress when paused
+  Ticker? _playTicker;
 
   String _statusForAppBar(ChatItem chat) {
     switch (chat.type) {
@@ -198,17 +201,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
       _isPaused = true;
       _elapsedBase = _recordElapsed; // freeze time
     });
+    _resetPlayback();
   }
 
   void _resumeRecording() {
     if (!_isRecording || !_isPaused) return;
     setState(() => _isPaused = false);
     _startTickerFromZero();
+    _resetPlayback();
   }
 
   void _cancelRecording() {
     _ticker?.dispose();
     _ticker = null;
+    _resetPlayback();
     setState(() {
       _isRecording = false;
       _recordLocked = false;
@@ -225,6 +231,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
     final human = _formatDuration(_recordElapsed);
     _ticker?.dispose();
     _ticker = null;
+    _resetPlayback();
     setState(() {
       _isRecording = false;
       _recordLocked = false;
@@ -232,10 +239,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
       _isArming = false;
       _micDragDy = 0.0;
     });
-    await context.read<ChatStore>().sendMessage(
+    await context.read<ChatStore>().sendAudioMessage(
       chatId: widget.chat.id,
-      text: '[voice $human]',
+      durationSec: _recordElapsed.inSeconds,
       me: me,
+      url: 'assets/mock/sample_audio.mp3',
+      sizeBytes: (_recordElapsed.inSeconds * 9 * 1024),
     );
   }
 
@@ -289,6 +298,56 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
     return '$mm:$ss,$cs';
   }
 
+  // Playback controls for paused preview
+  void _resetPlayback() {
+    _playTicker?.dispose();
+    _playTicker = null;
+    _isPlayingBack = false;
+    _playBaseProgress = 0.0;
+    _playbackProgress = 0.0;
+  }
+
+  void _startPlayback() {
+    if (_recordElapsed.inMilliseconds <= 0) return;
+    _playTicker?.dispose();
+    final int totalMs = _recordElapsed.inMilliseconds;
+    _isPlayingBack = true;
+    _playTicker = createTicker((elapsed) {
+      final double p = (_playBaseProgress + elapsed.inMilliseconds / totalMs).clamp(0.0, 1.0);
+      if (p >= 1.0) {
+        _playBaseProgress = 0.0;
+        _playbackProgress = 1.0;
+        _playTicker?.dispose();
+        _playTicker = null;
+        setState(() {
+          _isPlayingBack = false;
+          _playbackProgress = 0.0; // rewind to start after finishing
+          _playBaseProgress = 0.0;
+        });
+      } else {
+        setState(() {
+          _playbackProgress = p;
+        });
+      }
+    })..start();
+  }
+
+  void _pausePlaybackPreview() {
+    _playTicker?.dispose();
+    _playTicker = null;
+    _isPlayingBack = false;
+    _playBaseProgress = _playbackProgress;
+    setState(() {});
+  }
+
+  void _togglePlaybackPreview() {
+    if (_isPlayingBack) {
+      _pausePlaybackPreview();
+    } else {
+      _startPlayback();
+    }
+  }
+
   Widget _buildLivePreviewBubble({required String chatId, required String messageId}) {
     return Consumer2<ChatStore, UserStore>(
       builder: (context, chatStore, userStore, _) {
@@ -308,6 +367,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
         } else if (!m.isMine && chat.type == ChatType.channel) {
           senderName = chat.title;
         }
+        final body = m.kind == MessageKind.audio && m.audio != null
+            ? AudioMessage(
+                durationSec: m.audio!.durationSec,
+                sizeBytes: m.audio!.sizeBytes,
+                isMine: m.isMine,
+                waveform: m.audio!.waveform,
+              )
+            : null;
         return MessageBubble(
           text: m.text,
           time: m.time,
@@ -317,6 +384,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
           senderName: senderName,
           reactions: m.reactions,
           myReactions: m.myReactions,
+          body: body,
+          isMedia: false,
           onTapReaction: (emoji) {
             final me = context.read<UserStore>().currentUser!;
             context.read<ChatStore>().toggleReaction(
@@ -340,6 +409,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
     } else if (!m.isMine && chat.type == ChatType.channel) {
       senderName = chat.title;
     }
+    final body = m.kind == MessageKind.audio && m.audio != null
+        ? AudioMessage(
+            durationSec: m.audio!.durationSec,
+            sizeBytes: m.audio!.sizeBytes,
+            isMine: m.isMine,
+            waveform: m.audio!.waveform,
+          )
+        : null;
     return MessageBubble(
       text: m.text,
       time: m.time,
@@ -349,6 +426,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
       senderName: senderName,
       reactions: m.reactions,
       myReactions: m.myReactions,
+      body: body,
+      isMedia: false,
     );
   }
 
@@ -414,7 +493,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
     _scrollController.dispose();
     _ticker?.dispose();
     _blinkController.dispose();
-    _arrowController.dispose();
     super.dispose();
   }
 
@@ -538,7 +616,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
                 ),
               ],
             ),
-            if (_isRecording)
+            if (_isRecording && !_isPaused)
               Positioned(
                 right: -18,
                 bottom: -6,
@@ -656,19 +734,22 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
                       child: const Icon(Icons.arrow_upward, color: Colors.white, size: 22),
                     ),
                   )
-                : GestureDetector(
-                    key: const ValueKey('mic_btn'),
-                    onPanDown: _onMicPanDown,
-                    onPanUpdate: _onMicPanUpdate,
-                    onPanEnd: _onMicPanEnd,
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: const BoxDecoration(
-                        color: TelegramColors.primary,
-                        shape: BoxShape.circle,
+                : Transform.translate(
+                    offset: Offset(0, _isArming ? _micDragDy : 0),
+                    child: GestureDetector(
+                      key: const ValueKey('mic_btn'),
+                      onPanDown: _onMicPanDown,
+                      onPanUpdate: _onMicPanUpdate,
+                      onPanEnd: _onMicPanEnd,
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: TelegramColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.mic, color: Colors.white, size: 22),
                       ),
-                      child: const Icon(Icons.mic, color: Colors.white, size: 22),
                     ),
                   ),
           ),
@@ -744,37 +825,56 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
               ),
             ),
             const SizedBox(width: 10),
-            // Waveform + play/stop
+            // Waveform full width with centered play/pause overlay and progress
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: TelegramColors.divider)),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: _resumeRecording, // resume when pressing play
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: const BoxDecoration(color: TelegramColors.primary, shape: BoxShape.circle),
-                        child: const Icon(Icons.play_arrow, color: Colors.white),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: SizedBox(
-                        height: 28,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            for (final h in bars) ...[
-                              Container(width: 3, height: h, margin: const EdgeInsets.symmetric(horizontal: 1.2), color: const Color(0xFF90CAF9)),
-                            ]
-                          ],
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: TelegramColors.divider),
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final double trackWidth = constraints.maxWidth - 24; // visual padding
+                    final double progressX = (trackWidth * _playbackProgress).clamp(0.0, trackWidth);
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Wave bars background across full width
+                        SizedBox(
+                          height: 28,
+                          width: double.infinity,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              for (final h in bars) ...[
+                                Container(width: 3, height: h, margin: const EdgeInsets.symmetric(horizontal: 1.2), color: const Color(0xFF90CAF9)),
+                              ]
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                        // Progress indicator line
+                        Positioned(
+                          left: 12 + progressX - 1,
+                          top: 6,
+                          bottom: 6,
+                          child: Container(width: 2, color: TelegramColors.primary.withOpacity(0.6)),
+                        ),
+                        // Center play/pause overlay
+                        GestureDetector(
+                          onTap: _togglePlaybackPreview,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: const BoxDecoration(color: TelegramColors.primary, shape: BoxShape.circle),
+                            child: Icon(_isPlayingBack ? Icons.pause : Icons.play_arrow, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -945,6 +1045,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
 
     final bubble = Builder(
       builder: (context) {
+        final body = m.kind == MessageKind.audio && m.audio != null
+            ? AudioMessage(
+                durationSec: m.audio!.durationSec,
+                sizeBytes: m.audio!.sizeBytes,
+                isMine: isMine,
+                waveform: m.audio!.waveform,
+              )
+            : null;
         return MessageBubble(
           text: m.text,
           time: m.time,
@@ -954,6 +1062,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
           senderName: senderName,
           reactions: m.reactions,
           myReactions: m.myReactions,
+          body: body,
+          isMedia: false,
           onTap: _closeEmojiIfOpen,
           onTapReaction: (emoji) {
             context.read<ChatStore>().toggleReaction(
@@ -995,118 +1105,52 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
   }
 
   Widget _buildRecordOverlay() {
-    final bool showMicDrag = _isArming;
-    final bool showArmed = _isRecording; // reached 50px and armed
-    if (!showMicDrag && !showArmed) return const SizedBox.shrink();
+    // Only show overlay controls during active recording and not paused
+    if (!_isRecording || _isPaused) return const SizedBox.shrink();
 
     // Base position roughly where the mic button sits
     const double baseRight = 12; // composer horizontal padding
     const double baseBottom = 30 + 8; // composer bottom padding + small gap
 
-    final double translateY = showMicDrag
-        ? _micDragDy // negative => up
-        : -_armThreshold - 12; // armed position slightly higher than send button
+    // Slightly above send button baseline
+    const double translateY = -_armThreshold - 12;
 
-    final bool showPause = _isRecording && !_isPaused;
-    final bool showMicToResume = _isRecording && _isPaused;
+    final bool showPause = true; // here overlay is visible only when not paused
+    final bool showMicToResume = false;
 
     return Positioned(
       right: baseRight,
       bottom: baseBottom,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        clipBehavior: Clip.none,
-        children: [
-          if (showMicDrag)
-            Transform.translate(
-              offset: Offset(0, translateY),
-              child: SizedBox(
-                width: 26,
-                height: _armThreshold + 42,
-                child: CustomPaint(
-                  painter: _DashedArrowPainter(
-                    length: (-translateY).clamp(0, _armThreshold),
-                    phase: _arrowController.value,
-                  ),
-                ),
-              ),
-            ),
-          AnimatedSlide(
-            duration: const Duration(milliseconds: 80),
-            curve: Curves.easeOutCubic,
-            offset: Offset(0, translateY / 40.0),
-                          child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTapDown: (_) {},
-              onTap: () {
-                if (showPause) {
-                  _pauseRecording();
-                } else if (showMicToResume) {
-                  _resumeRecording();
-                }
-              },
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                transitionBuilder: (child, animation) {
-                  final jelly = CurvedAnimation(parent: animation, curve: Curves.elasticOut);
-                  return ScaleTransition(scale: jelly, child: child);
-                },
-                child: Container(
-                  key: ValueKey(showPause ? 'pause' : (showMicToResume ? 'mic_resume' : 'mic')),
-                  width: 40,
-                  height: 40,
-                  decoration: const BoxDecoration(color: TelegramColors.primary, shape: BoxShape.circle),
-                  child: Icon(showPause ? Icons.pause : Icons.mic, color: Colors.white, size: 22),
-                ),
-              ),
+      child: AnimatedSlide(
+        duration: const Duration(milliseconds: 80),
+        curve: Curves.easeOutCubic,
+        offset: Offset(0, translateY / 40.0),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTapDown: (_) {},
+          onTap: () {
+            if (showPause) {
+              _pauseRecording();
+            } else if (showMicToResume) {
+              _resumeRecording();
+            }
+          },
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            transitionBuilder: (child, animation) {
+              final jelly = CurvedAnimation(parent: animation, curve: Curves.elasticOut);
+              return ScaleTransition(scale: jelly, child: child);
+            },
+            child: Container(
+              key: ValueKey(showPause ? 'pause' : (showMicToResume ? 'mic_resume' : 'mic')),
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(color: TelegramColors.primary, shape: BoxShape.circle),
+              child: Icon(showPause ? Icons.pause : Icons.mic, color: Colors.white, size: 22),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
-} 
-
-class _DashedArrowPainter extends CustomPainter {
-  final double length; // positive
-  final double phase; // 0..1
-  _DashedArrowPainter({required this.length, required this.phase});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint p = Paint()
-      ..color = const Color(0xFFB0B0B0)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final double dash = 6;
-    final double gap = 4;
-    final double period = dash + gap;
-    double startOffset = (phase * period);
-    // Draw vertical dashed line from bottom to up for 'length'
-    double y = size.height - 20; // start near bottom
-    final double endY = y - length;
-    // shift initial offset
-    y -= startOffset;
-    while (y > endY) {
-      final double y2 = (y - dash).clamp(endY, y);
-      canvas.drawLine(Offset(size.width / 2, y), Offset(size.width / 2, y2), p);
-      y -= period;
-    }
-
-    // Arrow head at top
-    final double headY = endY;
-    final Path head = Path()
-      ..moveTo(size.width / 2, headY - 6)
-      ..lineTo(size.width / 2 - 6, headY + 2)
-      ..moveTo(size.width / 2, headY - 6)
-      ..lineTo(size.width / 2 + 6, headY + 2);
-    canvas.drawPath(head, p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedArrowPainter oldDelegate) {
-    return oldDelegate.length != length || oldDelegate.phase != phase;
-  }
-} 
+}

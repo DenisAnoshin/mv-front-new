@@ -12,6 +12,10 @@ class MessageBubble extends StatefulWidget {
   final DateTime time;
   final bool isMine;
   final MessageStatus? status;
+  // Optional custom body to render instead of plain text (e.g. audio message)
+  final Widget? body;
+  // When content is media (image/video) we use compact styling without inner padding/background
+  final bool isMedia;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   // Добавлено: позиция в группе сообщений одного отправителя для скруглений
@@ -29,6 +33,7 @@ class MessageBubble extends StatefulWidget {
     required this.text,
     required this.time,
     required this.isMine,
+    this.body,
     this.status,
     this.onTap,
     this.onLongPress,
@@ -37,6 +42,7 @@ class MessageBubble extends StatefulWidget {
     this.reactions = const <String, Set<String>>{},
     this.myReactions = const <String>{},
     this.onTapReaction,
+    this.isMedia = false,
   });
 
   @override
@@ -121,7 +127,9 @@ class _MessageBubbleState extends State<MessageBubble> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final isMine = widget.isMine;
-    final bubbleColor = isMine ? TelegramColors.messageOutgoing : TelegramColors.messageIncoming;
+    final bubbleColor = widget.isMedia
+        ? Colors.transparent
+        : (isMine ? TelegramColors.messageOutgoing : TelegramColors.messageIncoming);
     final textColor = TelegramColors.textPrimary;
     // Радиусы зависят от позиции в группе
     final Radius tight = const Radius.circular(6);
@@ -173,150 +181,158 @@ class _MessageBubbleState extends State<MessageBubble> with SingleTickerProvider
 
     final hasReactions = widget.reactions.isNotEmpty;
 
+    // Для медиа делаем равномерные скругления со всех сторон,
+    // без «хвоста» как у текстовых пузырей
+    if (widget.isMedia) {
+      radius = BorderRadius.circular(12);
+    }
+
     final bubble = LayoutBuilder(
       builder: (context, constraints) {
         final double maxWidth = constraints.maxWidth * 0.86; // ближе к краям
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: bubbleColor,
-              borderRadius: radius,
-              boxShadow: const [
-                BoxShadow(color: TelegramColors.messageShadow, blurRadius: 2, offset: Offset(0, 1)),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: DefaultTextStyle.merge(
-                style: const TextStyle(decoration: TextDecoration.none),
-                child: Stack(
-                  children: [
-                    // Текст и (опц.) имя отправителя
-                    Padding(
-                      padding: const EdgeInsets.only(right: 58),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!isMine && widget.senderName != null && widget.senderName!.isNotEmpty) ...[
-                            Text(
-                              widget.senderName!,
-                              style: const TextStyle(
-                                color: Color(0xFF388E3C),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                          ],
-                          Text(
-                            widget.text,
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 16,
-                              height: 1.25,
-                              fontWeight: FontWeight.w400,
-                              decoration: TextDecoration.none,
-                              decorationColor: Colors.transparent,
+
+        // Внутреннее содержимое пузыря
+        final Widget inner = Padding(
+          padding: widget.isMedia ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: DefaultTextStyle.merge(
+            style: const TextStyle(decoration: TextDecoration.none),
+            child: Stack(
+              children: [
+                // Контент: имя отправителя + текст или произвольное содержимое
+                Padding(
+                  padding: EdgeInsets.only(right: widget.isMedia ? 0 : 58),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!widget.isMedia && !isMine && widget.senderName != null && widget.senderName!.isNotEmpty) ...[
+                        Text(
+                          widget.senderName!,
+                          style: const TextStyle(
+                            color: Color(0xFF388E3C),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                      ],
+                      if (widget.body != null)
+                        widget.body!
+                      else
+                        Text(
+                          widget.text,
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 16,
+                            height: 1.25,
+                            fontWeight: FontWeight.w400,
+                            decoration: TextDecoration.none,
+                            decorationColor: Colors.transparent,
+                          ),
+                        ),
+                      if (hasReactions) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          key: _reactionsKey,
+                          child: AnimatedSize(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutCubic,
+                            alignment: Alignment.topLeft,
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: widget.reactions.entries.map((e) {
+                                final emoji = e.key;
+                                final reactors = e.value;
+                                final isMineReacted = widget.myReactions.contains(emoji);
+                                final users = context.read<UserStore>().usersById;
+                                final count = reactors.length;
+                                final showAvatars = count > 0 && count <= 3;
+                                final avatarIds = reactors.take(3).toList();
+
+                                final chipCore = Container(
+                                  key: ValueKey('${emoji}-${count}'),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(emoji, style: const TextStyle(fontSize: 13, decoration: TextDecoration.none)),
+                                        const SizedBox(width: 6),
+                                        if (showAvatars)
+                                          Builder(builder: (_) {
+                                            final double aw = 18 + (avatarIds.length - 1) * 12.0;
+                                            return SizedBox(
+                                              width: aw,
+                                              height: 18,
+                                              child: Stack(
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  for (int i = 0; i < avatarIds.length; i++)
+                                                    Positioned(
+                                                      left: i * 12.0,
+                                                      child: _buildInitialAvatar(avatarIds[i], users, size: 18),
+                                                    ),
+                                                ],
+                                              ),
+                                            );
+                                          })
+                                        else
+                                          Text('$count', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                      ],
+                                    ),
+                                  ),
+                                );
+
+                                // Pulse key changes when set of reactors or my own toggle changes
+                                final int reactorsHash = reactors.fold<int>(0, (acc, id) => acc ^ id.hashCode);
+                                final int pulseKey = reactorsHash ^ (isMineReacted ? 1 : 0);
+
+                                return GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTapDown: (_) {
+                                    _cancelHoldTimer();
+                                    _animateTo(1.0);
+                                  },
+                                  onTap: () => widget.onTapReaction?.call(emoji),
+                                  child: _PulseOnChange(
+                                    triggerKey: pulseKey,
+                                    child: chipCore,
+                                  ),
+                                );
+                              }).toList(),
                             ),
                           ),
-                          if (hasReactions) ...[
-                            const SizedBox(height: 6),
-                            Container(
-                              key: _reactionsKey,
-                              child: AnimatedSize(
-                                duration: const Duration(milliseconds: 220),
-                                curve: Curves.easeOutCubic,
-                                alignment: Alignment.topLeft,
-                                child: Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: widget.reactions.entries.map((e) {
-                                    final emoji = e.key;
-                                    final reactors = e.value;
-                                    final isMineReacted = widget.myReactions.contains(emoji);
-                                    final users = context.read<UserStore>().usersById;
-                                    final count = reactors.length;
-                                    final showAvatars = count > 0 && count <= 3;
-                                    final avatarIds = reactors.take(3).toList();
-
-                                    final chipCore = Container(
-                                      key: ValueKey('${emoji}-${count}'),
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.05),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        alignment: Alignment.centerLeft,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(emoji, style: const TextStyle(fontSize: 13, decoration: TextDecoration.none)),
-                                            const SizedBox(width: 6),
-                                            if (showAvatars)
-                                              Builder(builder: (_) {
-                                                final double aw = 18 + (avatarIds.length - 1) * 12.0;
-                                                return SizedBox(
-                                                  width: aw,
-                                                  height: 18,
-                                                  child: Stack(
-                                                    clipBehavior: Clip.none,
-                                                    children: [
-                                                      for (int i = 0; i < avatarIds.length; i++)
-                                                        Positioned(
-                                                          left: i * 12.0,
-                                                          child: _buildInitialAvatar(avatarIds[i], users, size: 18),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                );
-                                              })
-                                            else
-                                              Text('$count', style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-
-                                    // Pulse key changes when set of reactors or my own toggle changes
-                                    final int reactorsHash = reactors.fold<int>(0, (acc, id) => acc ^ id.hashCode);
-                                    final int pulseKey = reactorsHash ^ (isMineReacted ? 1 : 0);
-
-                                    return GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTapDown: (_) {
-                                        _cancelHoldTimer();
-                                        _animateTo(1.0);
-                                      },
-                                      onTap: () => widget.onTapReaction?.call(emoji),
-                                      child: _PulseOnChange(
-                                        triggerKey: pulseKey,
-                                        child: chipCore,
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                // Время и статус внизу справа
+                if (widget.isMedia)
+                  Positioned(
+                    right: 4,
+                    bottom: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    ),
-                    // Время и статус внизу справа
-                    Positioned(
-                      right: 4,
-                      bottom: 0,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             _formatTime(widget.time),
                             style: const TextStyle(
-                              color: TelegramColors.textSecondary,
+                              color: Colors.white,
                               fontSize: 12,
                               decoration: TextDecoration.none,
                               decorationColor: Colors.transparent,
@@ -324,16 +340,62 @@ class _MessageBubbleState extends State<MessageBubble> with SingleTickerProvider
                           ),
                           if (isMine) ...[
                             const SizedBox(width: 4),
-                            _statusIcon(),
+                            Icon(
+                              widget.status == MessageStatus.read
+                                  ? Icons.done_all
+                                  : widget.status == MessageStatus.sent
+                                      ? Icons.check
+                                      : Icons.access_time,
+                              size: 14,
+                              color: Colors.white,
+                            ),
                           ],
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  )
+                else
+                  Positioned(
+                    right: 4,
+                    bottom: 0,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _formatTime(widget.time),
+                          style: const TextStyle(
+                            color: TelegramColors.textSecondary,
+                            fontSize: 12,
+                            decoration: TextDecoration.none,
+                            decorationColor: Colors.transparent,
+                          ),
+                        ),
+                        if (isMine) ...[
+                          const SizedBox(width: 4),
+                          _statusIcon(),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
+        );
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: widget.isMedia
+              ? inner
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: bubbleColor,
+                    borderRadius: radius,
+                    boxShadow: const [
+                      BoxShadow(color: TelegramColors.messageShadow, blurRadius: 2, offset: Offset(0, 1)),
+                    ],
+                  ),
+                  child: inner,
+                ),
         );
       },
     );

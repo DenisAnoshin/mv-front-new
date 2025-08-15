@@ -6,6 +6,20 @@ enum MessageStatus { sending, sent, read }
 
 enum ChatType { direct, group, channel }
 
+/// Kind/type of a message (text, audio, images, etc.)
+enum MessageKind { text, audio }
+
+/// Metadata for an audio message
+class AudioAttachment {
+  final String? url; // local asset or network url (mocked)
+  final int durationSec; // total duration in seconds
+  final int sizeBytes; // file size in bytes
+  final List<int> waveform; // simplified waveform (0..15 per bar)
+
+  const AudioAttachment({this.url, required this.durationSec, required this.sizeBytes, this.waveform = const <int>[]});
+}
+
+
 class ChatItem {
   final String id;
   final String title;
@@ -71,6 +85,10 @@ class ChatMessage {
   final Map<String, Set<String>> reactions;
   // Emojis that current user reacted with
   final Set<String> myReactions;
+  // Message kind and optional metadata
+  final MessageKind kind;
+  final AudioAttachment? audio;
+  
 
   const ChatMessage({
     required this.id,
@@ -82,12 +100,17 @@ class ChatMessage {
     this.status,
     this.reactions = const <String, Set<String>>{},
     this.myReactions = const <String>{},
+    this.kind = MessageKind.text,
+    this.audio,
   });
 
   ChatMessage copyWith({
     MessageStatus? status,
     Map<String, Set<String>>? reactions,
     Set<String>? myReactions,
+    MessageKind? kind,
+    AudioAttachment? audio,
+    
   }) => ChatMessage(
         id: id,
         chatId: chatId,
@@ -98,6 +121,9 @@ class ChatMessage {
         status: status ?? this.status,
         reactions: reactions ?? this.reactions,
         myReactions: myReactions ?? this.myReactions,
+        kind: kind ?? this.kind,
+        audio: audio ?? this.audio,
+        
       );
 }
 
@@ -242,6 +268,7 @@ class ChatStore extends ChangeNotifier {
           status: status,
           reactions: rx ?? const {},
           myReactions: myRx ?? const {},
+          kind: MessageKind.text,
         );
       }
 
@@ -330,6 +357,78 @@ class ChatStore extends ChangeNotifier {
         lastTime: reply.time,
         unreadCount: current.unreadCount + 1,
       );
+    }
+
+    notifyListeners();
+  }
+
+  /// Creates and appends an audio message (mock) so it appears in the chat immediately
+  Future<void> sendAudioMessage({
+    required String chatId,
+    required int durationSec,
+    required UserProfile me,
+    String? url,
+    int? sizeBytes,
+    List<int> waveform = const <int>[],
+  }) async {
+    final chat = _chats.firstWhere((c) => c.id == chatId);
+    if (chat.type == ChatType.channel) return;
+
+    final int estimatedSize = sizeBytes ?? (durationSec * 8 * 1024); // ~64 kbps
+
+    final sending = ChatMessage(
+      id: 'm_${DateTime.now().microsecondsSinceEpoch}',
+      chatId: chatId,
+      senderId: me.id,
+      text: '',
+      time: DateTime.now(),
+      isMine: true,
+      status: MessageStatus.sending,
+      reactions: const {},
+      myReactions: const {},
+      kind: MessageKind.audio,
+      audio: AudioAttachment(url: url, durationSec: durationSec, sizeBytes: estimatedSize, waveform: waveform),
+    );
+
+    final list = _chatIdToMessages.putIfAbsent(chatId, () => <ChatMessage>[]);
+    list.add(sending);
+
+    final idx = _chats.indexWhere((c) => c.id == chatId);
+    if (idx != -1) {
+      _chats[idx] = _chats[idx].copyWith(lastMessage: 'Voice message • ${durationSec}s', lastTime: sending.time);
+    }
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 250));
+    final lastIndex = list.lastIndexWhere((m) => m.id == sending.id);
+    if (lastIndex != -1) {
+      list[lastIndex] = list[lastIndex].copyWith(status: MessageStatus.sent);
+      notifyListeners();
+    }
+
+    await Future.delayed(const Duration(milliseconds: 500));
+    final reply = ChatMessage(
+      id: 'm_reply_${DateTime.now().microsecondsSinceEpoch}',
+      chatId: chatId,
+      senderId: chat.peerUserId ?? 'peer_${chatId}',
+      text: 'Голосовое ок! 👌',
+      time: DateTime.now(),
+      isMine: false,
+      status: null,
+      reactions: const {},
+      myReactions: const {},
+      kind: MessageKind.text,
+    );
+    list.add(reply);
+
+    final myIdx = list.lastIndexWhere((m) => m.isMine);
+    if (myIdx != -1) {
+      list[myIdx] = list[myIdx].copyWith(status: MessageStatus.read);
+    }
+
+    if (idx != -1) {
+      final current = _chats[idx];
+      _chats[idx] = current.copyWith(lastMessage: reply.text, lastTime: reply.time, unreadCount: current.unreadCount + 1);
     }
 
     notifyListeners();

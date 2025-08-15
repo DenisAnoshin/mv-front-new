@@ -81,6 +81,8 @@ class MessageDto {
   final String? status; // sending|sent|read for outgoing only
   final Map<String, List<String>> reactions; // emoji -> userIds
   final List<String> myReactions;
+  final String type; // 'text' | 'audio' (reserved for future)
+  final Map<String, dynamic>? audio; // durationSec, sizeBytes, url, waveform
 
   const MessageDto({
     required this.id,
@@ -91,6 +93,8 @@ class MessageDto {
     this.status,
     this.reactions = const <String, List<String>>{},
     this.myReactions = const <String>[],
+    this.type = 'text',
+    this.audio,
   });
 
   factory MessageDto.fromMap(Map<String, dynamic> m) => MessageDto(
@@ -104,6 +108,8 @@ class MessageDto {
           (k, v) => MapEntry(k, (v as List<dynamic>).cast<String>()),
         ),
         myReactions: (m['myReactions'] as List<dynamic>? ?? const []).cast<String>(),
+        type: m['type'] as String? ?? 'text',
+        audio: m['audio'] as Map<String, dynamic>?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -115,5 +121,7 @@ class MessageDto {
         if (status != null) 'status': status,
         if (reactions.isNotEmpty) 'reactions': reactions,
         if (myReactions.isNotEmpty) 'myReactions': myReactions,
+        'type': type,
+        if (audio != null) 'audio': audio,
       };
 } 

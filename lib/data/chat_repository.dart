@@ -142,6 +142,21 @@ class MockJsonChatRepository implements ChatRepository {
     final Set<String> myReactions = ((map['myReactions'] as List<dynamic>? ?? const <dynamic>[])).cast<String>().toSet();
 
     final bool isMine = senderId == meUserId;
+
+    // Determine kind and optional attachments
+    MessageKind kind = MessageKind.text;
+    AudioAttachment? audio;
+    final String? typeStr = map['type'] as String?; // e.g., 'text' | 'audio'
+    if (typeStr == 'audio' || (map['audio'] is Map)) {
+      kind = MessageKind.audio;
+      final Map<String, dynamic> a = (map['audio'] as Map<String, dynamic>? ?? const {});
+      final int durationSec = (a['durationSec'] as num?)?.toInt() ?? 0;
+      final int sizeBytes = (a['sizeBytes'] as num?)?.toInt() ?? 0;
+      final String? url = a['url'] as String?;
+      final List<int> waveform = (a['waveform'] as List<dynamic>? ?? const []).map((e) => (e as num).toInt()).toList();
+      audio = AudioAttachment(url: url, durationSec: durationSec, sizeBytes: sizeBytes, waveform: waveform);
+    }
+
     return ChatMessage(
       id: id,
       chatId: chatId,
@@ -152,6 +167,8 @@ class MockJsonChatRepository implements ChatRepository {
       status: isMine ? status : null,
       reactions: reactions,
       myReactions: myReactions,
+      kind: kind,
+      audio: audio,
     );
   }
 
