@@ -17,29 +17,78 @@ class TelegramLoginPage extends StatefulWidget {
 
 class _TelegramLoginPageState extends State<TelegramLoginPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _countryController = TextEditingController(text: '+7');
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
   final List<FocusNode> _codeFocus = List.generate(6, (_) => FocusNode());
   final List<TextEditingController> _codeCells = List.generate(6, (_) => TextEditingController());
 
+  // Simple country model and data
+  static const List<_Country> _allCountries = <_Country>[
+    _Country(name: 'Russia', dialCode: '+7', flag: '🇷🇺'),
+    _Country(name: 'Netherlands', dialCode: '+31', flag: '🇳🇱'),
+    _Country(name: 'United States', dialCode: '+1', flag: '🇺🇸'),
+    _Country(name: 'United Kingdom', dialCode: '+44', flag: '🇬🇧'),
+    _Country(name: 'Germany', dialCode: '+49', flag: '🇩🇪'),
+    _Country(name: 'France', dialCode: '+33', flag: '🇫🇷'),
+    _Country(name: 'Spain', dialCode: '+34', flag: '🇪🇸'),
+    _Country(name: 'Italy', dialCode: '+39', flag: '🇮🇹'),
+    _Country(name: 'Ukraine', dialCode: '+380', flag: '🇺🇦'),
+    _Country(name: 'Belarus', dialCode: '+375', flag: '🇧🇾'),
+    _Country(name: 'Kazakhstan', dialCode: '+7', flag: '🇰🇿'),
+    _Country(name: 'Armenia', dialCode: '+374', flag: '🇦🇲'),
+    _Country(name: 'Georgia', dialCode: '+995', flag: '🇬🇪'),
+    _Country(name: 'China', dialCode: '+86', flag: '🇨🇳'),
+    _Country(name: 'Japan', dialCode: '+81', flag: '🇯🇵'),
+    _Country(name: 'India', dialCode: '+91', flag: '🇮🇳'),
+    _Country(name: 'Brazil', dialCode: '+55', flag: '🇧🇷'),
+    _Country(name: 'Canada', dialCode: '+1', flag: '🇨🇦'),
+    _Country(name: 'Australia', dialCode: '+61', flag: '🇦🇺'),
+    _Country(name: 'Turkey', dialCode: '+90', flag: '🇹🇷'),
+  ];
+  _Country _selectedCountry = const _Country(name: 'Russia', dialCode: '+7', flag: '🇷🇺');
+  final TextEditingController _countrySearchController = TextEditingController();
+  bool _countryListOpen = false;
+
   bool _isSubmitting = false;
   bool _codeSent = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Prefill phone input with default country's dial code
+    _applySelectedCountryPrefix();
+  }
+
+  @override
   void dispose() {
-    _countryController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
+    _countrySearchController.dispose();
     for (final f in _codeFocus) f.dispose();
     for (final c in _codeCells) c.dispose();
     super.dispose();
   }
 
   String _fullPhone() {
-    final cc = _countryController.text.trim().replaceAll(RegExp(r'[^0-9+]'), '');
-    final pn = _phoneController.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
-    return (cc.isEmpty ? '+7' : cc) + pn;
+    final raw = _phoneController.text.trim();
+    // If user removed prefix, restore selected country code
+    if (!raw.startsWith('+')) {
+      return _selectedCountry.dialCode + raw.replaceAll(RegExp(r'[^0-9]'), '');
+    }
+    final digits = raw.replaceAll(RegExp(r'[^0-9+]'), '');
+    return digits;
+  }
+
+  void _applySelectedCountryPrefix() {
+    final text = _phoneController.text;
+    final rest = text.startsWith('+')
+        ? text.replaceFirst(RegExp(r'^\+\d+\s*'), '')
+        : text;
+    final next = '${_selectedCountry.dialCode} ${rest.trim()}'.trimRight();
+    _phoneController.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
   }
 
   Future<void> _requestCode() async {
@@ -126,8 +175,19 @@ class _TelegramLoginPageState extends State<TelegramLoginPage> {
         decoration: InputDecoration(
           counterText: '',
           filled: true,
-          fillColor: Colors.black.withValues(alpha: 0.04),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDFE1E5)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDFE1E5)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDFE1E5)),
+          ),
         ),
         onChanged: (v) => _onCodeChanged(idx, v),
       ),
@@ -137,10 +197,10 @@ class _TelegramLoginPageState extends State<TelegramLoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final title = _codeSent ? 'Введите код' : 'Вход по номеру телефона';
+    final title = _codeSent ? 'Enter code' : 'Sign in to Words';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -177,8 +237,8 @@ class _TelegramLoginPageState extends State<TelegramLoginPage> {
                   const SizedBox(height: 8),
                   Text(
                     _codeSent
-                        ? 'Мы отправили код подтверждения в SMS. Введите 000000 для мока.'
-                        : 'Укажите код страны и номер телефона, чтобы получить код входа.',
+                        ? 'We sent a confirmation code via SMS. Enter 000000 for mock.'
+                        : 'Please confirm your country code and enter your phone number.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(color: TelegramColors.textSecondary),
                   ),
@@ -189,58 +249,56 @@ class _TelegramLoginPageState extends State<TelegramLoginPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (!_codeSent) ...[
-                          Row(
-                            children: [
-                              SizedBox(
-                                width: 92,
-                                child: TextFormField(
-                                  controller: _countryController,
-                                  keyboardType: TextInputType.phone,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
-                                  ],
-                                  decoration: const InputDecoration(
-                                    labelText: 'Код',
-                                    hintText: '+7',
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-                                  ),
-                                  validator: (v) {
-                                    final raw = (v ?? '').replaceAll(RegExp(r'[^0-9+]'), '');
-                                    if (raw.isEmpty || !raw.startsWith('+')) return 'Начните с +';
-                                    if (raw.length < 2) return 'Коротко';
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _phoneController,
-                                  keyboardType: TextInputType.phone,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9\s\-]')),
-                                  ],
-                                  decoration: const InputDecoration(
-                                    labelText: 'Номер телефона',
-                                    hintText: '999 123-45-67',
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-                                  ),
-                                  validator: (value) {
-                                    final raw = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-                                    if (raw.isEmpty) return 'Введите номер';
-                                    if (raw.length < 6) return 'Слишком короткий';
-                                    return null;
-                                  },
-                                ),
-                              ),
+                          // Country dropdown with inline search
+                          _CountrySelector(
+                            selected: _selectedCountry,
+                            onChanged: (c) {
+                              setState(() => _selectedCountry = c);
+                              _applySelectedCountryPrefix();
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          // Single phone input with auto prefix
+                          TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9\s\-+()]')),
                             ],
+                            decoration: InputDecoration(
+                              labelText: 'Phone Number',
+                              hintText: '${_selectedCountry.dialCode} 999 123 45 67',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                              enabledBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(Radius.circular(12)),
+                                borderSide: BorderSide(color: Color(0xFFDFE1E5)),
+                              ),
+                              focusedBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(Radius.circular(12)),
+                                borderSide: BorderSide(color: Color(0xFFDFE1E5)),
+                              ),
+                            ),
+                            onTap: () {
+                              if (!_phoneController.text.startsWith('+')) {
+                                _applySelectedCountryPrefix();
+                              }
+                            },
+                            validator: (value) {
+                              final raw = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                              if (raw.isEmpty) return 'Enter phone';
+                              if (raw.length < 6) return 'Too short';
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 16),
                           FilledButton(
                             onPressed: _isSubmitting ? null : _requestCode,
                             style: FilledButton.styleFrom(
                               backgroundColor: TelegramColors.primary,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 21),
+                              minimumSize: const Size.fromHeight(48),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             child: _isSubmitting
@@ -252,7 +310,7 @@ class _TelegramLoginPageState extends State<TelegramLoginPage> {
                                       valueColor: AlwaysStoppedAnimation<Color>(TelegramColors.textOnPrimary),
                                     ),
                                   )
-                                : const Text('Получить код', style: TextStyle(color: TelegramColors.textOnPrimary)),
+                                : const Text('NEXT', style: TextStyle(color: TelegramColors.textOnPrimary)),
                           ),
                         ]
                         else ...[
@@ -264,47 +322,47 @@ class _TelegramLoginPageState extends State<TelegramLoginPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _isSubmitting
-                                      ? null
-                                      : () => setState(() {
-                                            _codeSent = false;
-                                          }),
-                                  child: const Text('Изменить номер'),
-                                ),
+                          // Single full-width login button
+                          FilledButton(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () {
+                                    final form = _formKey.currentState;
+                                    if (form == null) return;
+                                    if (!form.validate()) return;
+                                    _verifyCode();
+                                  },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: TelegramColors.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 21),
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(TelegramColors.textOnPrimary),
+                                    ),
+                                  )
+                                : const Text('Войти', style: TextStyle(color: TelegramColors.textOnPrimary)),
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: TextButton(
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () => setState(() {
+                                        _codeSent = false;
+                                      }),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF0A84FF),
+                                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: FilledButton(
-                                  onPressed: _isSubmitting
-                                      ? null
-                                      : () {
-                                          final form = _formKey.currentState;
-                                          if (form == null) return;
-                                          if (!form.validate()) return;
-                                          _verifyCode();
-                                        },
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: TelegramColors.primary,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                  child: _isSubmitting
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(TelegramColors.textOnPrimary),
-                                          ),
-                                        )
-                                      : const Text('Войти', style: TextStyle(color: TelegramColors.textOnPrimary)),
-                                ),
-                              ),
-                            ],
+                              child: const Text('Изменить номер'),
+                            ),
                           ),
                         ],
                       ],
@@ -312,7 +370,7 @@ class _TelegramLoginPageState extends State<TelegramLoginPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'В целях мока: код всегда 000000. Профиль будет сохранён локально.',
+                    'For mock purposes: the code is always 000000. Profile is saved locally.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(color: TelegramColors.textSecondary),
                   ),
@@ -325,3 +383,137 @@ class _TelegramLoginPageState extends State<TelegramLoginPage> {
     );
   }
 } 
+
+class _CountrySelector extends StatefulWidget {
+  final _Country selected;
+  final ValueChanged<_Country> onChanged;
+  const _CountrySelector({required this.selected, required this.onChanged});
+
+  @override
+  State<_CountrySelector> createState() => _CountrySelectorState();
+}
+
+class _CountrySelectorState extends State<_CountrySelector> {
+  final TextEditingController _search = TextEditingController();
+  bool _open = false;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Iterable<_Country> _filtered() {
+    final q = _search.text.trim().toLowerCase();
+    if (q.isEmpty) return _TelegramLoginPageState._allCountries;
+    return _TelegramLoginPageState._allCountries.where((c) =>
+        c.name.toLowerCase().contains(q) || c.dialCode.contains(q));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _open = !_open),
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: 'Country',
+              filled: true,
+              fillColor: Colors.white,
+              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+              enabledBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+                borderSide: BorderSide(color: Color(0xFFDFE1E5)),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+                borderSide: BorderSide(color: Color(0xFFDFE1E5)),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(children: [
+                  Text(widget.selected.flag, style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: 8),
+                  Text(widget.selected.name, style: const TextStyle(fontSize: 16)),
+                ]),
+                const Icon(Icons.expand_more, color: Color(0xFF8E8E93)),
+              ],
+            ),
+          ),
+        ),
+        if (_open) ...[
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E5EA)),
+            ),
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                  child: TextField(
+                    controller: _search,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: 'Search country',
+                      prefixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFDFE1E5)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFDFE1E5)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFDFE1E5)),
+                      ),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    children: _filtered().map((c) {
+                      final selected = c.name == widget.selected.name && c.dialCode == widget.selected.dialCode;
+                      return ListTile(
+                        dense: true,
+                        leading: Text(c.flag, style: const TextStyle(fontSize: 20)),
+                        title: Text(c.name),
+                        trailing: Text(c.dialCode, style: const TextStyle(color: Color(0xFF8E8E93))),
+                        selected: selected,
+                        onTap: () {
+                          widget.onChanged(c);
+                          setState(() => _open = false);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _Country {
+  final String name;
+  final String dialCode;
+  final String flag;
+  const _Country({required this.name, required this.dialCode, required this.flag});
+}

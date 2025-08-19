@@ -12,6 +12,7 @@ import 'appearance_page.dart';
 import 'help_page.dart';
 import '../../widgets/settings/settings_card.dart';
 import '../../widgets/settings/settings_tiles.dart';
+import '../../stores/chat_store.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -139,6 +140,23 @@ class SettingsPage extends StatelessWidget {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const HelpPage()),
                 ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            // Logout
+            SettingsCard(children: [
+              SettingsNavTile(
+                position: SettingsTilePosition.single,
+                title: 'Выйти',
+                leadingIcon: Icons.logout,
+                onTap: () async {
+                  // Clear local data and return to root; RootRouter will show login page
+                  context.read<ChatStore>().clear();
+                  await context.read<UserStore>().logout();
+                  if (context.mounted) {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  }
+                },
               ),
             ]),
           ],

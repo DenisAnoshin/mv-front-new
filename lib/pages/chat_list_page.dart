@@ -4,6 +4,7 @@ import '../stores/chat_store.dart';
 import '../stores/user_store.dart';
 import '../theme/telegram_colors.dart';
 import 'telegram_login_page.dart';
+import 'package:flutter_svg/flutter_svg.dart' as svg;
 import 'chat_detail_page.dart';
 import 'new_chat_page.dart';
 
