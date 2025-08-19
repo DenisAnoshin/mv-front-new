@@ -12,6 +12,20 @@ class ContactsPage extends StatefulWidget {
 }
 
 class _ContactsPageState extends State<ContactsPage> {
+  Route _slideFromRight(Widget page) {
+    return PageRouteBuilder(
+      pageBuilder: (_, __, ___) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(1.0, 0.0);
+        const end = Offset.zero;
+        final tween = Tween<Offset>(begin: begin, end: end).chain(CurveTween(curve: Curves.easeOutCubic));
+        return SlideTransition(position: animation.drive(tween), child: child);
+      },
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 280),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final contacts = mockContacts();
@@ -55,9 +69,7 @@ class _ContactsPageState extends State<ContactsPage> {
                       participantIds: const [],
                       peerUserId: c.id,
                     );
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => ChatDetailPage(chat: chat)),
-                    );
+                    Navigator.of(context).push(_slideFromRight(ChatDetailPage(chat: chat)));
                   },
                 ),
               ),

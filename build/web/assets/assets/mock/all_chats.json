@@ -1,0 +1,90 @@
+{
+  "users": [
+    {"id": "u_maria", "phone": "+79000000001", "displayName": "Мария"},
+    {"id": "u_ivan", "phone": "+79000000002", "displayName": "Иван"},
+    {"id": "u_olga", "phone": "+79000000003", "displayName": "Ольга"},
+    {"id": "u_pavel", "phone": "+79000000004", "displayName": "Павел"},
+    {"id": "u_anna", "phone": "+79000000005", "displayName": "Анна"},
+    {"id": "u_oleg", "phone": "+79000000006", "displayName": "Олег"},
+    {"id": "u_kate", "phone": "+79000000007", "displayName": "Катя"},
+    {"id": "u_denis", "phone": "+79000000008", "displayName": "Денис"},
+    {"id": "u_sergey", "phone": "+79000000009", "displayName": "Сергей"},
+    {"id": "u_vika", "phone": "+79000000010", "displayName": "Вика"}
+  ],
+  "chats": [
+    {
+      "id": "d_maria",
+      "type": "direct",
+      "title": "Мария",
+      "peerUserId": "u_maria",
+      "lastMessage": "Завтра созвон 11:00? Перекину ссылку",
+      "lastTime": "2025-07-01T09:24:00.000Z",
+      "unreadCount": 1,
+      "messages": [
+        {"id": "m1", "senderId": "u_maria", "text": "Привет! Как дела?", "time": "2025-07-01T09:00:00.000Z", "reactions": {"❤️": ["u_maria", "u_denis"], "👍": ["u_ivan"]}},
+        {"id": "m2", "senderId": "$me", "text": "Привет, всё отлично!", "time": "2025-07-01T09:01:00.000Z", "status": "read", "reactions": {"🔥": ["u_maria"], "😁": ["u_maria", "u_ivan"]}},
+        {"id": "m3", "senderId": "u_maria", "text": "Завтра созвон 11:00? Перекину ссылку", "time": "2025-07-01T09:22:00.000Z", "reactions": {"✅": ["u_denis"]}}
+      ]
+    },
+    {
+      "id": "d_ivan",
+      "type": "direct",
+      "title": "Иван",
+      "peerUserId": "u_ivan",
+      "lastMessage": "Ок, договорились",
+      "lastTime": "2025-07-01T08:50:00.000Z",
+      "unreadCount": 0,
+      "messages": [
+        {"id": "m1", "senderId": "u_ivan", "text": "Кофе сегодня?", "time": "2025-07-01T08:20:00.000Z", "reactions": {"👍": ["u_denis", "u_vika"]}},
+        {"id": "m2", "senderId": "$me", "text": "Давай в 15:00", "time": "2025-07-01T08:45:00.000Z", "status": "read", "reactions": {"🤝": ["u_ivan"], "❤️": ["u_maria"]}},
+        {"id": "m3", "senderId": "u_ivan", "text": "Ок, договорились", "time": "2025-07-01T08:50:00.000Z", "reactions": {"✅": ["u_ivan", "u_maria"]}}
+      ]
+    },
+    {
+      "id": "grp_frontend",
+      "type": "group",
+      "title": "Frontend Crew",
+      "memberCount": 42,
+      "participantIds": ["u_anna", "u_oleg", "u_kate", "u_pavel", "u_sergey", "u_vika"],
+      "lastMessage": "Давайте переведём проект на Flutter 3.24",
+      "lastTime": "2025-07-01T09:27:00.000Z",
+      "unreadCount": 3,
+      "messages": [
+        {"id": "m1", "senderId": "u_kate", "text": "Не забудьте проставить версии пакетов", "time": "2025-07-01T09:00:00.000Z", "reactions": {"👍": ["u_anna", "u_oleg", "u_kate"], "😁": ["u_vika"]}},
+        {"id": "m2", "senderId": "u_pavel", "text": "Ок, создам MR", "time": "2025-07-01T09:10:00.000Z", "reactions": {"✅": ["u_sergey"], "👍": ["u_anna"]}},
+        {"id": "m3", "senderId": "u_anna", "text": "Давайте переведём проект на Flutter 3.24", "time": "2025-07-01T09:27:00.000Z", "reactions": {"🔥": ["u_pavel", "u_anna", "u_denis"], "❤️": ["u_kate"]}}
+      ]
+    },
+    {
+      "id": "grp_travel",
+      "type": "group",
+      "title": "Поход на выходных",
+      "memberCount": 18,
+      "participantIds": ["u_maria", "u_ivan", "u_olga", "u_pavel", "u_anna", "u_denis", "u_sergey"],
+      "lastMessage": "Маршрут через озеро, вид шикарный!",
+      "lastTime": "2025-07-01T09:05:00.000Z",
+      "unreadCount": 2,
+      "messages": [
+        {"id": "m1", "senderId": "u_sergey", "text": "Палатки беру на себя", "time": "2025-07-01T08:40:00.000Z", "reactions": {"🤝": ["u_ivan", "u_pavel"], "👍": ["u_anna"]}},
+        {"id": "m2", "senderId": "u_maria", "text": "Маршрут через озеро, вид шикарный!", "time": "2025-07-01T09:05:00.000Z", "reactions": {"🔥": ["u_maria", "u_ivan", "u_pavel", "u_anna", "u_sergey"], "❤️": ["u_olga"]}}
+      ]
+    },
+    {
+      "id": "ch_tech",
+      "type": "channel",
+      "title": "Tech Digest",
+      "subscriberCount": 52100,
+      "lastMessage": "Релиз Dart 3.5: ускорения и Records everywhere",
+      "lastTime": "2025-07-01T09:12:00.000Z",
+      "unreadCount": 0,
+      "messages": [
+        {"id": "m1", "senderId": "u_denis", "text": "Ссылка на релиз", "time": "2025-07-01T09:00:00.000Z", "reactions": {"👍": ["u_sergey", "u_vika"], "✅": ["u_anna"]}},
+        {"id": "m2", "senderId": "u_denis", "text": "Релиз Dart 3.5: ускорения и Records everywhere", "time": "2025-07-01T09:12:00.000Z", "reactions": {"🔥": ["u_ivan", "u_kate", "u_pavel"], "❤️": ["u_maria"]}}
+      ]
+    }
+  ]
+}
+
+
+
+

@@ -27,6 +27,20 @@ class _ChatListPageState extends State<ChatListPage> {
     _loadFuture ??= _load(context);
   }
 
+  Route _slideFromRight(Widget page) {
+    return PageRouteBuilder(
+      pageBuilder: (_, __, ___) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(1.0, 0.0);
+        const end = Offset.zero;
+        final tween = Tween<Offset>(begin: begin, end: end).chain(CurveTween(curve: Curves.easeOutCubic));
+        return SlideTransition(position: animation.drive(tween), child: child);
+      },
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 280),
+    );
+  }
+
   Future<void> _load(BuildContext context) async {
     final userStore = context.read<UserStore>();
     final chatStore = context.read<ChatStore>();
@@ -296,11 +310,9 @@ class _ChatListPageState extends State<ChatListPage> {
                                 splashColor: TelegramColors.ripple,
                                 highlightColor: TelegramColors.ripple,
                                 onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => ChatDetailPage(chat: chat),
-                                    ),
-                                  );
+                                  Navigator.of(context).push(_slideFromRight(
+                                    ChatDetailPage(chat: chat),
+                                  ));
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
