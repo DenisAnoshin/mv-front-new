@@ -1043,32 +1043,41 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
 
     final me = context.read<UserStore>().currentUser!;
 
-    final bubble = Builder(
-      builder: (context) {
-        final body = m.kind == MessageKind.audio && m.audio != null
+    // Render bubble with live data from store by message id
+    final bubble = Consumer<ChatStore>(
+      builder: (context, store, _) {
+        ChatMessage live = m;
+        final list = store.messagesFor(chat.id);
+        for (final x in list) {
+          if (x.id == m.id) {
+            live = x;
+            break;
+          }
+        }
+        final body = live.kind == MessageKind.audio && live.audio != null
             ? AudioMessage(
-                durationSec: m.audio!.durationSec,
-                sizeBytes: m.audio!.sizeBytes,
+                durationSec: live.audio!.durationSec,
+                sizeBytes: live.audio!.sizeBytes,
                 isMine: isMine,
-                waveform: m.audio!.waveform,
+                waveform: live.audio!.waveform,
               )
             : null;
         return MessageBubble(
-          text: m.text,
-          time: m.time,
+          text: live.text,
+          time: live.time,
           isMine: isMine,
-          status: m.status,
+          status: live.status,
           groupPosition: position,
           senderName: senderName,
-          reactions: m.reactions,
-          myReactions: m.myReactions,
+          reactions: live.reactions,
+          myReactions: live.myReactions,
           body: body,
           isMedia: false,
           onTap: _closeEmojiIfOpen,
           onTapReaction: (emoji) {
             context.read<ChatStore>().toggleReaction(
                   chatId: chat.id,
-                  messageId: m.id,
+                  messageId: live.id,
                   emoji: emoji,
                   myUserId: me.id,
                 );
@@ -1078,7 +1087,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
             if (box == null) return;
             final pos = box.localToGlobal(Offset.zero);
             final rect = Rect.fromLTWH(pos.dx, pos.dy, box.size.width, box.size.height);
-            _openContextMenu(context: context, bubbleRect: rect, message: m);
+            _openContextMenu(context: context, bubbleRect: rect, message: live);
           },
         );
       },

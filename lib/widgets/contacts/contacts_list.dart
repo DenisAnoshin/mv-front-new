@@ -10,15 +10,15 @@ class ContactItem {
 }
 
 List<ContactItem> mockContacts() => const [
-      ContactItem(id: 'c_a1', fullName: 'Аиланты Фото', lastSeen: 'был(-а) 8 авг.'),
+      ContactItem(id: 'c_a1', fullName: 'Атланты', lastSeen: 'был(-а) 8 авг.'),
       ContactItem(id: 'c_a2', fullName: 'Алена Сайт', lastSeen: 'был(-а) 30 июля'),
       ContactItem(id: 'c_a3', fullName: 'Антон Церковь', lastSeen: 'был(-а) 27 июня'),
-      ContactItem(id: 'c_b1', fullName: 'Владимир Реабилитолог', lastSeen: '4 ч назад'),
+      ContactItem(id: 'c_b1', fullName: 'Владимир', lastSeen: '4 ч назад'),
       ContactItem(id: 'c_b2', fullName: 'Владимир Сайт', lastSeen: 'был(-а) 1 авг.'),
       ContactItem(id: 'c_b3', fullName: 'Владислав Солнечный Остров', lastSeen: 'был(-а) 27 июля'),
       ContactItem(id: 'c_e1', fullName: 'Евгений Web', lastSeen: 'был(-а) 21 июля'),
-      ContactItem(id: 'c_e2', fullName: 'Евгений Биржа Нет Опыта Выслал П...', lastSeen: 'был(-а) 2 авг.'),
-      ContactItem(id: 'c_e3', fullName: 'Евгения Кадочникова'),
+      ContactItem(id: 'c_e2', fullName: 'Евгений Биржа', lastSeen: 'был(-а) 2 авг.'),
+      ContactItem(id: 'c_e3', fullName: 'Евгения Биржа'),
       ContactItem(id: 'c_g1', fullName: 'Глеб Мирный'),
       ContactItem(id: 'c_d1', fullName: 'Дмитрий Проектный', lastSeen: 'был(-а) 3 дня назад'),
       ContactItem(id: 'c_s1', fullName: 'Сергей Техподдержка', lastSeen: 'онлайн недавно'),
