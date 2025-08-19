@@ -33,46 +33,73 @@ class ChatBundle {
 }
 
 class MockJsonChatRepository implements ChatRepository {
-  static const String _basePath = 'assets/mock';
+  static const String _allPath = 'assets/mock/all_chats.json';
 
-  @override
-  Future<List<UserProfile>> fetchUsers() async {
-    final raw = await rootBundle.loadString('$_basePath/users.json');
+  bool _loaded = false;
+  List<UserProfile> _usersCache = <UserProfile>[];
+  List<ChatItem> _chatsCache = <ChatItem>[];
+  final Map<String, List<Map<String, dynamic>>> _rawMessagesByChatId = <String, List<Map<String, dynamic>>>{};
+
+  Future<void> _ensureLoaded() async {
+    if (_loaded) return;
+    final raw = await rootBundle.loadString(_allPath);
     final Map<String, dynamic> jsonMap = json.decode(raw) as Map<String, dynamic>;
-    final List<dynamic> users = (jsonMap['users'] as List<dynamic>? ?? const []);
-    return users.map((e) {
+
+    // Users
+    _usersCache = ((jsonMap['users'] as List<dynamic>? ?? const <dynamic>[])).map((e) {
       final m = e as Map<String, dynamic>;
       return UserProfile(
         id: m['id'] as String,
         phone: m['phone'] as String? ?? '',
         displayName: m['displayName'] as String? ?? '',
         avatarUrl: m['avatarUrl'] as String?,
+        username: m['username'] as String?,
+        registeredAt: m['registeredAt'] != null ? DateTime.tryParse(m['registeredAt'] as String) : null,
+        bio: m['bio'] as String?,
+        isPremium: m['isPremium'] as bool?,
       );
     }).toList();
-  }
 
-  @override
-  Future<List<ChatItem>> fetchChats({required String meUserId}) async {
-    final raw = await rootBundle.loadString('$_basePath/chats.json');
-    final Map<String, dynamic> jsonMap = json.decode(raw) as Map<String, dynamic>;
-    final List<dynamic> chats = (jsonMap['chats'] as List<dynamic>? ?? const []);
-
-    List<ChatItem> items = chats.map((e) {
+    // Chats + messages
+    _chatsCache.clear();
+    _rawMessagesByChatId.clear();
+    final List<dynamic> chats = (jsonMap['chats'] as List<dynamic>? ?? const <dynamic>[]);
+    for (final dynamic e in chats) {
       final m = e as Map<String, dynamic>;
-      return ChatItem(
-        id: m['id'] as String,
+      final chatId = m['id'] as String;
+      _chatsCache.add(ChatItem(
+        id: chatId,
         title: m['title'] as String,
         lastMessage: m['lastMessage'] as String? ?? '',
         lastTime: DateTime.parse(m['lastTime'] as String),
         unreadCount: (m['unreadCount'] as num?)?.toInt() ?? 0,
         type: _chatTypeFromString(m['type'] as String?),
-        participantIds: (m['participantIds'] as List<dynamic>? ?? const []).cast<String>(),
+        participantIds: (m['participantIds'] as List<dynamic>? ?? const <dynamic>[]).cast<String>(),
         peerUserId: m['peerUserId'] as String?,
         memberCount: (m['memberCount'] as num?)?.toInt(),
         subscriberCount: (m['subscriberCount'] as num?)?.toInt(),
-      );
-    }).toList();
-    return items;
+      ));
+
+      final List<dynamic> msgs = (m['messages'] as List<dynamic>? ?? const <dynamic>[]);
+      // Keep only the latest 30 if more provided
+      final List<Map<String, dynamic>> asMaps = msgs.map((e) => (e as Map<String, dynamic>)).toList();
+      final List<Map<String, dynamic>> last30 = asMaps.length > 30 ? asMaps.sublist(asMaps.length - 30) : asMaps;
+      _rawMessagesByChatId[chatId] = last30;
+    }
+
+    _loaded = true;
+  }
+
+  @override
+  Future<List<UserProfile>> fetchUsers() async {
+    await _ensureLoaded();
+    return _usersCache;
+  }
+
+  @override
+  Future<List<ChatItem>> fetchChats({required String meUserId}) async {
+    await _ensureLoaded();
+    return _chatsCache;
   }
 
   @override
@@ -82,33 +109,33 @@ class MockJsonChatRepository implements ChatRepository {
     int? limit,
     String? cursor,
   }) async {
-    final raw = await rootBundle.loadString('$_basePath/messages_$chatId.json');
-    final Map<String, dynamic> jsonMap = json.decode(raw) as Map<String, dynamic>;
-    final List<dynamic> messages = (jsonMap['messages'] as List<dynamic>? ?? const []);
-    return messages.map((e) => _messageFromMap(chatId: chatId, meUserId: meUserId, map: e as Map<String, dynamic>)).toList();
+    await _ensureLoaded();
+    final List<Map<String, dynamic>> raw = _rawMessagesByChatId[chatId] ?? const <Map<String, dynamic>>[];
+    final List<ChatMessage> parsed = raw.map((e) => _messageFromMap(chatId: chatId, meUserId: meUserId, map: e)).toList();
+    if (limit != null && parsed.length > limit) {
+      return parsed.sublist(parsed.length - limit);
+    }
+    return parsed;
   }
 
   @override
   Future<ChatBundle> fetchChatBundle({required String chatId, required String meUserId}) async {
-    final raw = await rootBundle.loadString('$_basePath/bundles/chat_$chatId.json');
-    final Map<String, dynamic> jsonMap = json.decode(raw) as Map<String, dynamic>;
-
-    final users = ((jsonMap['users'] as List<dynamic>? ?? const [])).map((e) {
-      final m = e as Map<String, dynamic>;
-      return UserProfile(
-        id: m['id'] as String,
-        phone: m['phone'] as String? ?? '',
-        displayName: m['displayName'] as String? ?? '',
-        avatarUrl: m['avatarUrl'] as String?,
-      );
-    }).toList();
-
-    final List<ChatMessage> messages = ((jsonMap['messages'] as List<dynamic>? ?? const [])).map((e) {
-      return _messageFromMap(chatId: chatId, meUserId: meUserId, map: e as Map<String, dynamic>);
-    }).toList();
-
-    final Map<String, dynamic> settings = (jsonMap['settings'] as Map<String, dynamic>?) ?? const {};
-    return ChatBundle(users: users, messages: messages, settings: settings);
+    await _ensureLoaded();
+    final List<ChatMessage> messages = await fetchMessages(chatId: chatId, meUserId: meUserId);
+    // Select users involved in this chat for enrichment
+    final Set<String> userIds = <String>{};
+    for (final m in messages) {
+      userIds.add(m.senderId);
+      userIds.addAll(m.reactions.values.expand((set) => set));
+    }
+    // Include peer/participants if present
+    final ChatItem? chat = _chatsCache.cast<ChatItem?>().firstWhere((c) => c!.id == chatId, orElse: () => null);
+    if (chat != null) {
+      if (chat.peerUserId != null) userIds.add(chat.peerUserId!);
+      userIds.addAll(chat.participantIds);
+    }
+    final List<UserProfile> users = _usersCache.where((u) => userIds.contains(u.id)).toList();
+    return ChatBundle(users: users, messages: messages, settings: const {});
   }
 
   ChatType _chatTypeFromString(String? s) {

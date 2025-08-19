@@ -63,7 +63,15 @@ class _RootRouterState extends State<_RootRouter> {
   @override
   void initState() {
     super.initState();
-    _initFuture = context.read<UserStore>().initializeSession();
+    _initFuture = () async {
+      final userStore = context.read<UserStore>();
+      final chatStore = context.read<ChatStore>();
+      await userStore.initializeSession();
+      final me = userStore.currentUser;
+      if (me != null) {
+        await chatStore.loadMockChats(me, userStore: userStore);
+      }
+    }();
   }
 
   @override
