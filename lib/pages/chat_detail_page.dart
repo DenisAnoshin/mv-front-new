@@ -32,6 +32,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
   
   bool _hasText = false;
 
+  // Edge-swipe back state
+  double _backDragDx = 0.0; // current horizontal translation
+  bool _backDragActive = false; // only when started from left edge
+  late final AnimationController _backSlideController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 240),
+  );
+  Animation<double>? _backSlideTween;
+
   // AnimatedList state + local copy of messages to keep in sync
   final GlobalKey<AnimatedListState> _animatedListKey = GlobalKey<AnimatedListState>();
   List<ChatMessage> _messages = <ChatMessage>[];
@@ -72,6 +81,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
       final has = _controller.text.trim().isNotEmpty;
       if (has != _hasText) {
         setState(() => _hasText = has);
+      }
+    });
+    _backSlideController.addListener(() {
+      if (_backSlideTween != null) {
+        setState(() {
+          _backDragDx = _backSlideTween!.value;
+        });
       }
     });
   }
@@ -493,6 +509,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
     _scrollController.dispose();
     _ticker?.dispose();
     _blinkController.dispose();
+    _backSlideController.dispose();
     super.dispose();
   }
 
@@ -517,128 +534,182 @@ class _ChatDetailPageState extends State<ChatDetailPage> with TickerProviderStat
   @override
   Widget build(BuildContext context) {
     final chat = widget.chat;
-    return Scaffold(
-      backgroundColor: TelegramColors.chatBackground,
-      appBar: ChatAppBar(
-        title: chat.title,
-        status: _statusForAppBar(chat),
-        onBack: () => Navigator.of(context).pop(),
-        onOpenProfile: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => UserProfilePage(title: chat.title)),
-        ),
-      ),
-      body: ChatBackground(
-        child: Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            Column(
-              children: [
-                Expanded(
-                  child: FutureBuilder<void>(
-                    future: _loadFuture,
-                    builder: (context, snapshot) {
-                      return Consumer<ChatStore>(
-                        builder: (context, store, _) {
-                          final List<ChatMessage> next = store.messagesFor(chat.id);
-                          final List<ChatMessage> nextRev = next.reversed.toList();
-                          final isLoading = snapshot.connectionState != ConnectionState.done && nextRev.isEmpty;
-                          if (isLoading) {
-                            return const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(TelegramColors.primary),
-                              ),
-                            );
-                          }
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double dx = _backDragDx.clamp(0.0, screenWidth);
+    return Stack(
+      children: [
+        Transform.translate(
+          offset: Offset(dx, 0),
+          child: Scaffold(
+            backgroundColor: TelegramColors.chatBackground,
+            appBar: ChatAppBar(
+              title: chat.title,
+              status: _statusForAppBar(chat),
+              onBack: () => Navigator.of(context).pop(),
+              onOpenProfile: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => UserProfilePage(title: chat.title)),
+              ),
+            ),
+            body: ChatBackground(
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Column(
+                    children: [
+                      Expanded(
+                        child: FutureBuilder<void>(
+                          future: _loadFuture,
+                          builder: (context, snapshot) {
+                            return Consumer<ChatStore>(
+                              builder: (context, store, _) {
+                                final List<ChatMessage> next = store.messagesFor(chat.id);
+                                final List<ChatMessage> nextRev = next.reversed.toList();
+                                final isLoading = snapshot.connectionState != ConnectionState.done && nextRev.isEmpty;
+                                if (isLoading) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(TelegramColors.primary),
+                                    ),
+                                  );
+                                }
 
-                          if (!_listInitialized && nextRev.isEmpty) {
-                            return _emptyState();
-                          }
+                                if (!_listInitialized && nextRev.isEmpty) {
+                                  return _emptyState();
+                                }
 
-                          // Initialize local list once when data arrives the first time
-                          if (!_listInitialized) {
-                            _messages = List<ChatMessage>.from(nextRev);
-                            _listInitialized = true;
-                          } else {
-                            // After first build, keep AnimatedList in sync with store
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              _syncAnimatedListWith(nextRev);
-                            });
-                          }
+                                // Initialize local list once when data arrives the first time
+                                if (!_listInitialized) {
+                                  _messages = List<ChatMessage>.from(nextRev);
+                                  _listInitialized = true;
+                                } else {
+                                  // After first build, keep AnimatedList in sync with store
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    _syncAnimatedListWith(nextRev);
+                                  });
+                                }
 
-                          return GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onTap: _closeEmojiIfOpen,
-                            child: AnimatedList(
-                              key: _animatedListKey,
-                              controller: _scrollController,
-                              reverse: true,
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                              initialItemCount: _messages.length,
-                              itemBuilder: (context, index, animation) {
-                                return _buildAnimatedItem(index: index, animation: animation);
+                                return GestureDetector(
+                                  behavior: HitTestBehavior.translucent,
+                                  onTap: _closeEmojiIfOpen,
+                                  child: AnimatedList(
+                                    key: _animatedListKey,
+                                    controller: _scrollController,
+                                    reverse: true,
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                                    initialItemCount: _messages.length,
+                                    itemBuilder: (context, index, animation) {
+                                      return _buildAnimatedItem(index: index, animation: animation);
+                                    },
+                                  ),
+                                );
                               },
+                            );
+                          },
+                        ),
+                      ),
+                      const Divider(height: 1, color: Colors.transparent),
+                      SafeArea(
+                        top: false,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 240),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          child: _isPaused
+                              ? _buildPausedBar()
+                              : _isRecording
+                                  ? _buildRecordingBar()
+                                  : _buildComposer(),
+                        ),
+                      ),
+                      // Sliding emoji panel under the composer
+                      ClipRect(
+                        child: SizeTransition(
+                          sizeFactor: CurvedAnimation(parent: _emojiController, curve: Curves.easeOutCubic),
+                          axisAlignment: -1.0,
+                          child: SlideTransition(
+                            position: Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+                                .chain(CurveTween(curve: Curves.easeOutCubic))
+                                .animate(_emojiController),
+                            child: EmojiPanel(
+                              rounded: false,
+                              onSelect: (e) => _insertEmoji(e),
                             ),
-                          );
-                        },
-                      );
-                    },
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const Divider(height: 1, color: Colors.transparent),
-                SafeArea(
-                  top: false,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    child: _isPaused
-                        ? _buildPausedBar()
-                        : _isRecording
-                            ? _buildRecordingBar()
-                            : _buildComposer(),
-                  ),
-                ),
-                // Sliding emoji panel under the composer
-                ClipRect(
-                  child: SizeTransition(
-                    sizeFactor: CurvedAnimation(parent: _emojiController, curve: Curves.easeOutCubic),
-                    axisAlignment: -1.0,
-                    child: SlideTransition(
-                      position: Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
-                          .chain(CurveTween(curve: Curves.easeOutCubic))
-                          .animate(_emojiController),
-                      child: EmojiPanel(
-                        rounded: false,
-                        onSelect: (e) => _insertEmoji(e),
+                  if (_isRecording && !_isPaused)
+                    Positioned(
+                      right: -18,
+                      bottom: -6,
+                      child: SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 6, bottom: 6),
+                          child: RecordPulse(
+                            size: 82,
+                            color: TelegramColors.primary,
+                            rings: 4,
+                            center: const Icon(Icons.arrow_upward, color: Colors.white, size: 30),
+                            onTapCenter: _sendRecording,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            if (_isRecording && !_isPaused)
-              Positioned(
-                right: -18,
-                bottom: -6,
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 6, bottom: 6),
-                    child: RecordPulse(
-                      size: 82,
-                      color: TelegramColors.primary,
-                      rings: 4,
-                      center: const Icon(Icons.arrow_upward, color: Colors.white, size: 30),
-                      onTapCenter: _sendRecording,
-                    ),
-                  ),
-                ),
+                  // Put overlay last to be on top for reliable taps
+                  _buildRecordOverlay(),
+                ],
               ),
-            // Put overlay last to be on top for reliable taps
-            _buildRecordOverlay(),
-          ],
+            ),
+          ),
         ),
-      ),
+        // Fullscreen horizontal drag detector; activates only if gesture starts near left edge
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragStart: (details) {
+              final dxStart = details.localPosition.dx;
+              _backDragActive = dxStart <= 80.0; // activate only from left 80px
+              if (_backDragActive) {
+                _backSlideController.stop();
+              }
+            },
+            onHorizontalDragUpdate: (details) {
+              if (!_backDragActive) return;
+              final dxDelta = details.primaryDelta ?? 0.0;
+              if (dxDelta <= 0 && _backDragDx <= 0) return;
+              setState(() {
+                _backDragDx = (_backDragDx + dxDelta).clamp(0.0, screenWidth);
+              });
+            },
+            onHorizontalDragEnd: (details) {
+              if (!_backDragActive) return;
+              _backDragActive = false;
+              final velocity = details.primaryVelocity ?? 0.0; // >0 => swipe right
+              final shouldPopByVelocity = velocity > 600;
+              final shouldPopByDistance = _backDragDx > screenWidth * 0.33;
+              if (shouldPopByVelocity || shouldPopByDistance) {
+                _backSlideTween = Tween<double>(begin: _backDragDx, end: screenWidth)
+                    .animate(CurvedAnimation(parent: _backSlideController, curve: Curves.easeOutCubic));
+                _backSlideController
+                  ..value = 0
+                  ..forward().whenComplete(() {
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  });
+              } else {
+                _backSlideTween = Tween<double>(begin: _backDragDx, end: 0.0)
+                    .animate(CurvedAnimation(parent: _backSlideController, curve: Curves.easeOutCubic));
+                _backSlideController
+                  ..value = 0
+                  ..forward();
+              }
+            },
+          ),
+        ),
+      ],
     );
   }
 
