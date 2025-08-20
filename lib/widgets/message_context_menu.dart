@@ -134,6 +134,14 @@ class _MessageContextMenuState extends State<MessageContextMenu> {
     );
 
     final reactionsKey = GlobalKey();
+    Future<void> _dismiss() async {
+      if (!mounted) return;
+      setState(() => _show = false);
+      // Ждём короткую анимацию, затем закрываем диалог
+      await Future.delayed(_dur);
+      if (mounted) Navigator.of(context).pop();
+    }
+
     final reactionsMaterial = Material(
       key: reactionsKey,
       color: Colors.white,
@@ -143,9 +151,10 @@ class _MessageContextMenuState extends State<MessageContextMenu> {
       child: QuickReactionsBar(
         emojis: widget.reactionEmojis,
         onExpand: () => setState(() => _showPicker = !_showPicker),
-        onTapReaction: (e) {
+        onTapReaction: (e) async {
           widget.onTapReaction(e);
           setState(() => _myReactions = _toggleLocal(_myReactions, e));
+          await _dismiss();
         },
         width: 300,
         height: 48,
@@ -171,12 +180,13 @@ class _MessageContextMenuState extends State<MessageContextMenu> {
               child: EmojiPickerInline(
                 categoryTitles: _categories,
                 categoryEmojis: _categoryEmojis,
-                onSelect: (em) {
+                onSelect: (em) async {
                   widget.onTapReaction(em);
                   setState(() {
                     _myReactions = _toggleLocal(_myReactions, em);
                     _showPicker = false;
                   });
+                  await _dismiss();
                 },
                 selected: _myReactions,
               ),
@@ -189,37 +199,49 @@ class _MessageContextMenuState extends State<MessageContextMenu> {
       child: Stack(
         children: [
           Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10 * (_show ? 1 : 0).toDouble(), sigmaY: 10 * (_show ? 1 : 0).toDouble()),
-              child: Container(color: Colors.white.withOpacity(0.08 * (_show ? 1 : 0).toDouble())),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: _show ? 1 : 0),
+              duration: _dur,
+              curve: Curves.easeOutCubic,
+              builder: (context, t, _) {
+                return BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10 * t, sigmaY: 10 * t),
+                  child: Container(color: Colors.white.withOpacity(0.08 * t)),
+                );
+              },
             ),
           ),
           Positioned.fill(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        reactions,
-                        const SizedBox(height: 8),
-                        pickerInline,
-                        if (_showPicker) const SizedBox(height: 8),
-                        preview,
-                        const SizedBox(height: 10),
-                        menu,
-                        const SizedBox(height: 32),
-                      ],
+            child: AnimatedOpacity(
+              opacity: _show ? 1 : 0,
+              duration: _dur,
+              curve: Curves.easeOutCubic,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          reactions,
+                          const SizedBox(height: 8),
+                          pickerInline,
+                          if (_showPicker) const SizedBox(height: 8),
+                          preview,
+                          const SizedBox(height: 10),
+                          menu,
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
           Positioned.fill(
