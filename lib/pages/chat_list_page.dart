@@ -20,11 +20,19 @@ class _ChatListPageState extends State<ChatListPage> {
   int _tabIndex = 0; // 0 = All, 1 = Unread
   final TextEditingController _search = TextEditingController();
   String _query = '';
+  late final PageController _pageController = PageController(initialPage: _tabIndex);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _loadFuture ??= _load(context);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _pageController.dispose();
+    super.dispose();
   }
 
   Route _slideFromRight(Widget page) {
@@ -142,7 +150,11 @@ class _ChatListPageState extends State<ChatListPage> {
         Row(children: [
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => setState(() => _tabIndex = 0),
+            onTap: () {
+              if (_tabIndex != 0) {
+                _pageController.animateToPage(0, duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
+              }
+            },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -167,7 +179,11 @@ class _ChatListPageState extends State<ChatListPage> {
           const SizedBox(width: 18),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => setState(() => _tabIndex = 1),
+            onTap: () {
+              if (_tabIndex != 1) {
+                _pageController.animateToPage(1, duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
+              }
+            },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -260,183 +276,190 @@ class _ChatListPageState extends State<ChatListPage> {
               child: FutureBuilder<void>(
                 future: _loadFuture,
                 builder: (context, snapshot) {
-                  return RefreshIndicator(
-                    color: TelegramColors.primary,
-                    onRefresh: () => _load(context),
-                    child: Consumer<ChatStore>(
-                      builder: (context, chatStore, _) {
-                        List<ChatItem> chats = chatStore.chats;
-                        if (_tabIndex == 1) {
-                          chats = chats.where((c) => c.unreadCount > 0).toList();
-                        }
-                        if (_query.isNotEmpty) {
-                          chats = chats
-                              .where((c) => c.title.toLowerCase().contains(_query) || c.lastMessage.toLowerCase().contains(_query))
-                              .toList();
-                        }
-                        if (snapshot.connectionState == ConnectionState.waiting && chats.isEmpty) {
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(TelegramColors.primary),
-                            ),
-                          );
-                        }
-                        if (chats.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'Нет чатов',
-                              style: TextStyle(
-                                color: TelegramColors.textSecondary,
-                                fontSize: 16,
-                              ),
-                            ),
-                          );
-                        }
-                        return ListView.separated(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: chats.length,
-                          separatorBuilder: (context, index) => Container(
-                            height: 0.5,
-                            margin: const EdgeInsets.only(left: 88),
-                            color: TelegramColors.divider,
-                          ),
-                          itemBuilder: (context, index) {
-                            final chat = chats[index];
-                            final isChannel = chat.type == ChatType.channel;
-
-                            return Material(
-                              color: TelegramColors.background,
-                              child: InkWell(
-                                splashColor: TelegramColors.ripple,
-                                highlightColor: TelegramColors.ripple,
-                                onTap: () {
-                                  Navigator.of(context).push(_slideFromRight(
-                                    ChatDetailPage(chat: chat),
-                                  ));
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  child: Row(
-                                    children: [
-                                      Stack(
-                                        children: [
-                                          _buildAvatar(chat.title),
-                                          if (chat.type == ChatType.direct)
-                                            Positioned(
-                                              right: 0,
-                                              bottom: 0,
-                                              child: Container(
-                                                width: 18,
-                                                height: 18,
-                                                decoration: BoxDecoration(
-                                                  color: TelegramColors.onlineIndicator,
-                                                  shape: BoxShape.circle,
-                                                  border: Border.all(
-                                                    color: TelegramColors.background,
-                                                    width: 2,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                if (isChannel)
-                                                  const Padding(
-                                                    padding: EdgeInsets.only(right: 4),
-                                                    child: Icon(
-                                                      Icons.campaign,
-                                                      size: 16,
-                                                      color: TelegramColors.textSecondary,
-                                                    ),
-                                                  ),
-                                                Expanded(
-                                                  child: Text(
-                                                    chat.title,
-                                                    style: const TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: TelegramColors.textPrimary,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    chat.lastMessage,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      color: TelegramColors.textSecondary,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                if (chat.unreadCount > 0) ...[
-                                                  const SizedBox(width: 8),
-                                                  Container(
-                                                    constraints: const BoxConstraints(
-                                                      minWidth: 20,
-                                                      minHeight: 20,
-                                                    ),
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2,
-                                                    ),
-                                                    decoration: BoxDecoration(
-                                                      color: TelegramColors.unreadBadge,
-                                                      borderRadius: BorderRadius.circular(10),
-                                                    ),
-                                                    child: Text(
-                                                      chat.unreadCount > 99 ? '99+' : chat.unreadCount.toString(),
-                                                      style: const TextStyle(
-                                                        color: TelegramColors.textOnPrimary,
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w500,
-                                                      ),
-                                                      textAlign: TextAlign.center,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        _formatTime(chat.lastTime),
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: chat.unreadCount > 0
-                                              ? TelegramColors.primary
-                                              : TelegramColors.textSecondary,
-                                          fontWeight: chat.unreadCount > 0
-                                              ? FontWeight.w500
-                                              : FontWeight.normal,
-                                        ),
-                                      ),
-                                    ],
+                  return PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (page) => setState(() => _tabIndex = page),
+                    itemCount: 2,
+                    itemBuilder: (context, pageIndex) {
+                      return RefreshIndicator(
+                        color: TelegramColors.primary,
+                        onRefresh: () => _load(context),
+                        child: Consumer<ChatStore>(
+                          builder: (context, chatStore, _) {
+                            List<ChatItem> chats = chatStore.chats;
+                            if (pageIndex == 1) {
+                              chats = chats.where((c) => c.unreadCount > 0).toList();
+                            }
+                            if (_query.isNotEmpty) {
+                              chats = chats
+                                  .where((c) => c.title.toLowerCase().contains(_query) || c.lastMessage.toLowerCase().contains(_query))
+                                  .toList();
+                            }
+                            if (snapshot.connectionState == ConnectionState.waiting && chats.isEmpty) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(TelegramColors.primary),
+                                ),
+                              );
+                            }
+                            if (chats.isEmpty) {
+                              return const Center(
+                                child: Text(
+                                  'Нет чатов',
+                                  style: TextStyle(
+                                    color: TelegramColors.textSecondary,
+                                    fontSize: 16,
                                   ),
                                 ),
+                              );
+                            }
+                            return ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: chats.length,
+                              separatorBuilder: (context, index) => Container(
+                                height: 0.5,
+                                margin: const EdgeInsets.only(left: 88),
+                                color: TelegramColors.divider,
                               ),
+                              itemBuilder: (context, index) {
+                                final chat = chats[index];
+                                final isChannel = chat.type == ChatType.channel;
+
+                                return Material(
+                                  color: TelegramColors.background,
+                                  child: InkWell(
+                                    splashColor: TelegramColors.ripple,
+                                    highlightColor: TelegramColors.ripple,
+                                    onTap: () {
+                                      Navigator.of(context).push(_slideFromRight(
+                                        ChatDetailPage(chat: chat),
+                                      ));
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      child: Row(
+                                        children: [
+                                          Stack(
+                                            children: [
+                                              _buildAvatar(chat.title),
+                                              if (chat.type == ChatType.direct)
+                                                Positioned(
+                                                  right: 0,
+                                                  bottom: 0,
+                                                  child: Container(
+                                                    width: 18,
+                                                    height: 18,
+                                                    decoration: BoxDecoration(
+                                                      color: TelegramColors.onlineIndicator,
+                                                      shape: BoxShape.circle,
+                                                      border: Border.all(
+                                                        color: TelegramColors.background,
+                                                        width: 2,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    if (isChannel)
+                                                      const Padding(
+                                                        padding: EdgeInsets.only(right: 4),
+                                                        child: Icon(
+                                                          Icons.campaign,
+                                                          size: 16,
+                                                          color: TelegramColors.textSecondary,
+                                                        ),
+                                                      ),
+                                                    Expanded(
+                                                      child: Text(
+                                                        chat.title,
+                                                        style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight: FontWeight.w500,
+                                                          color: TelegramColors.textPrimary,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        chat.lastMessage,
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                          color: TelegramColors.textSecondary,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                    if (chat.unreadCount > 0) ...[
+                                                      const SizedBox(width: 8),
+                                                      Container(
+                                                        constraints: const BoxConstraints(
+                                                          minWidth: 20,
+                                                          minHeight: 20,
+                                                        ),
+                                                        padding: const EdgeInsets.symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 2,
+                                                        ),
+                                                        decoration: BoxDecoration(
+                                                          color: TelegramColors.unreadBadge,
+                                                          borderRadius: BorderRadius.circular(10),
+                                                        ),
+                                                        child: Text(
+                                                          chat.unreadCount > 99 ? '99+' : chat.unreadCount.toString(),
+                                                          style: const TextStyle(
+                                                            color: TelegramColors.textOnPrimary,
+                                                            fontSize: 12,
+                                                            fontWeight: FontWeight.w500,
+                                                          ),
+                                                          textAlign: TextAlign.center,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            _formatTime(chat.lastTime),
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: chat.unreadCount > 0
+                                                  ? TelegramColors.primary
+                                                  : TelegramColors.textSecondary,
+                                              fontWeight: chat.unreadCount > 0
+                                                  ? FontWeight.w500
+                                                  : FontWeight.normal,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
